@@ -19,7 +19,7 @@ minimumRevision = 40783;
 
 longDescription = "Generic post for machine AXHS7145 with Fanuc.";
 
-extension = "nc";
+extension = ""; //"nc";
 programNameIsInteger = true;
 setCodePage("ascii");
 
@@ -39,28 +39,30 @@ highFeedrate = (unit == IN) ? 500 : 5000;
 properties = {
   writeMachine: true, // write machine
   writeTools: true, // writes the tools
-  preloadTool: true, // preloads next tool on tool change if any
-  showSequenceNumbers: true, // show sequence numbers
+  preloadTool: false, // preloads next tool on tool change if any
+  showSequenceNumbers: false, // show sequence numbers
   sequenceNumberStart: 10, // first sequence number
   sequenceNumberIncrement: 5, // increment for sequence numbers
-  optionalStop: true, // optional stop
+  optionalStop: false, // optional stop
   o8: false, // specifies 8-digit program number
   separateWordsWithSpace: true, // specifies that the words should be separated with a white space
   allow3DArcs: false, // specifies that 3D circular arcs are allowed
   useRadius: false, // specifies that arcs should be output using the radius (R word) instead of the I, J, and K words
   forceIJK: false, // force output of IJK for G2/G3 when not using R word
   useParametricFeed: false, // specifies that feed should be output using Q values
-  showNotes: false, // specifies that operation notes should be output
+  showNotes: true, // specifies that operation notes should be output
   useSmoothing: false, // specifies if smoothing should be used or not
   usePitchForTapping: false, // enable to use pitch instead of feed for the F-word for canned tapping cycles - note that your CNC control must be setup for pitch mode!
   useG95: false, // use IPR/MPR instead of IPM/MPM
-  useG28: true, // specifies that G28 should be used instead of G53
+  useG28: false, // specifies that G28 should be used instead of G53
   useG54x4: false, // Fanuc 30i supports G54.4 for Workpiece Error Compensation
   useSubroutines: false, // specifies that subroutines per each operation should be generated
   useFilesForSubprograms: false, // specifies that one file should be generated to section
   useSubroutinePatterns: false, // generates subroutines for patterned operation
   useSubroutineCycles: false, // generates subroutines for cycle operations on same holes
-  useRigidTapping: "yes" // output rigid tapping block
+  useRigidTapping: "yes", // output rigid tapping block
+  useGoPro: true, //if runing program, use air coolant for clear gopro cam
+  useSpindleCoolant: false // false = disable through tool coolant - for broken spindle coolant
 };
 
 // user-defined property definitions

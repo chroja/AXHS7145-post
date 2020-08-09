@@ -62,7 +62,12 @@ properties = {
   useSubroutineCycles: false, // generates subroutines for cycle operations on same holes
   useRigidTapping: "yes", // output rigid tapping block
   useGoPro: true, //if runing program, use air coolant for clear gopro cam
-  useSpindleCoolant: false // false = disable through tool coolant - for broken spindle coolant
+  useSpindleCoolant: false, // false = disable through tool coolant - for broken spindle coolant
+  useCoolantForTaping: false,
+  endXPosG54: -270,
+  endYPosG54: 0, 
+  G43RetractZ: 200,
+  G43RetractF: 4000
 };
 
 // user-defined property definitions
@@ -207,6 +212,10 @@ var cycleSubprogramIsActive = false;
 var patternIsActive = false;
 var lastOperationComment = "";
 var incrementalSubprogram;
+var endXPosG54 = properties.endXPosG54;
+var endYPosG54 = properties.endYPosG54;
+var G43RetractZ = properties.G43RetractZ;
+var G43RetractF = properties.G43RetractF;
 probeMultipleFeatures = true;
 
 
@@ -1195,7 +1204,7 @@ function onSection() {
       onCommand(COMMAND_OPTIONAL_STOP);
     }
 
-    if (tool.number > 99) {
+    if (tool.number > 16) {
       warning(localize("Tool number exceeds maximum value."));
     }
 
@@ -1204,7 +1213,7 @@ function onSection() {
     if (tool.comment) {
       writeComment(tool.comment);
     }
-    var showToolZMin = false;
+    var showToolZMin = true;
     if (showToolZMin) {
       if (is3D()) {
         var numberOfSections = getNumberOfSections();
@@ -1217,7 +1226,7 @@ function onSection() {
           }
           zRange.expandToRange(section.getGlobalZRange());
         }
-        writeComment(localize("ZMIN") + "=" + zRange.getMinimum());
+        writeComment(localize("ZMIN") + "=" + xyzFormat.format(zRange.getMinimum()));
       }
     }
 
@@ -1245,11 +1254,11 @@ function onSection() {
        (tool.clockwise != getPreviousSection().getTool().clockwise))) {
     forceSpindleSpeed = false;
     
-    if (spindleSpeed < 1) {
+    if (spindleSpeed < 50) {
       error(localize("Spindle speed out of range."));
       return;
     }
-    if (spindleSpeed > 99999) {
+    if (spindleSpeed > 8000) {
       warning(localize("Spindle speed exceeds maximum value."));
     }
     var tapping = hasParameter("operation:cycleType") &&
@@ -1340,7 +1349,7 @@ function onSection() {
 
   if (insertToolCall || !lengthCompensationActive || retracted || (!isFirstSection() && getPreviousSection().isMultiAxis())) {
     var lengthOffset = tool.lengthOffset;
-    if (lengthOffset > 99) {
+    if (lengthOffset > 16) {
       error(localize("Length offset out of range."));
       return;
     }
@@ -1369,8 +1378,9 @@ function onSection() {
       writeBlock(
         gMotionModal.format(0),
         gFormat.format(offsetCode),
-        zOutput.format(initialPosition.z),
-        hFormat.format(lengthOffset)
+        zOutput.format(initialPosition.z+G43RetractZ),
+        hFormat.format(lengthOffset),
+        "F" + feedFormat.format(G43RetractF)
       );
       lengthCompensationActive = true;
     } else {
@@ -1463,6 +1473,16 @@ function getCommonCycle(x, y, z, r, c) {
       zOutput.format(z),
       "R" + xyzFormat.format(r)];
   }
+}
+
+function getCommonCycleXY(x, y) {
+  forceXYZ(); // force xyz on first drill hole of any cycle
+  return [xOutput.format(x), yOutput.format(y),];
+}
+
+function getCommonCycleZ(z) {
+  forceXYZ(); // force xyz on first drill hole of any cycle
+  return [zOutput.format(z)];
 }
 
 function setCyclePosition(_position) {
@@ -1845,7 +1865,7 @@ function onCyclePoint(x, y, z) {
       );
       break;
     case "boring":
-      if (P > 0) {
+      /*if (P > 0) {
         writeBlock(
           gRetractModal.format(98), gCycleModal.format(89),
           getCommonCycle(x, y, z, cycle.retract, cycle.clearance),
@@ -1857,8 +1877,23 @@ function onCyclePoint(x, y, z) {
           gRetractModal.format(98), gCycleModal.format(85),
           getCommonCycle(x, y, z, cycle.retract, cycle.clearance),
           feedOutput.format(F)
-        );
-      }
+        );*/
+        writeWords("N" + E);
+        onCommand(COMMAND_START_SPINDLE);
+        setCoolant(tool.coolant);
+        writeBlock(gMotionModal.format(0), getCommonCycleXY(x, y));
+        writeBlock(gMotionModal.format(0), "Z" + cycle.retract);
+        writeBlock(gMotionModal.format(1), getCommonCycleZ(z), feedOutput.format(F));
+        onCommand(COMMAND_STOP_SPINDLE);
+        writeBlock(gMotionModal.format(4), "X0.5");
+        writeBlock(gMotionModal.format(1), "Z" + cycle.retract, feedOutput.format(500));
+        writeRetract(Z);
+        writeBlock(gFormat.format(53), "X" + xyzFormat.format(endXPosG54), "Y" + xyzFormat.format(endYPosG54) );
+        onCommand(COMMAND_COOLANT_OFF);
+        writeBlock(mFormat.format(1));
+        forceSpindleSpeed = true;
+
+      //}
       break;
       
     case "probing-x":
@@ -2548,8 +2583,8 @@ function getCoolantCodes(coolant) {
 }
 
 var mapCommand = {
-  COMMAND_STOP:0,
-  COMMAND_OPTIONAL_STOP:1,
+  //COMMAND_STOP:0,
+  //COMMAND_OPTIONAL_STOP:1,
   COMMAND_END:2,
   COMMAND_SPINDLE_CLOCKWISE:3,
   COMMAND_SPINDLE_COUNTERCLOCKWISE:4,
@@ -2566,8 +2601,20 @@ function onCommand(command) {
     setCoolant(COOLANT_FLOOD);
     return;
   case COMMAND_STOP:
+    writeRetract(Z);
+    writeBlock(gFormat.format(53), "X" + xyzFormat.format(endXPosG54), "Y" + xyzFormat.format(endYPosG54) );
+    onCommand(COMMAND_COOLANT_OFF);
     writeBlock(mFormat.format(0));
     forceSpindleSpeed = true;
+
+    return;
+  case COMMAND_OPTIONAL_STOP:
+    writeRetract(Z);
+    writeBlock(gFormat.format(53), "X" + xyzFormat.format(endXPosG54), "Y" + xyzFormat.format(endYPosG54) );
+    onCommand(COMMAND_COOLANT_OFF);
+    writeBlock(mFormat.format(1));
+    forceSpindleSpeed = true;
+
     return;
   case COMMAND_START_SPINDLE:
     onCommand(tool.clockwise ? COMMAND_SPINDLE_CLOCKWISE : COMMAND_SPINDLE_COUNTERCLOCKWISE);
@@ -2587,6 +2634,8 @@ function onCommand(command) {
   case COMMAND_PROBE_ON:
     return;
   case COMMAND_PROBE_OFF:
+    return;
+  case COMMAND_OPTIONAL_STOP:
     return;
   }
   

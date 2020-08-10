@@ -63,7 +63,7 @@ properties = {
   useRigidTapping: "yes", // output rigid tapping block
   useGoPro: true, //if runing program, use air coolant for clear gopro cam
   useSpindleCoolant: false, // false = disable through tool coolant - for broken spindle coolant
-  useCoolantForTaping: false,
+  useCoolantForTapping: false,
   endXPosG54: -270,
   endYPosG54: 0, 
   G43RetractZ: 200,
@@ -1244,6 +1244,19 @@ function onSection() {
       }
     }
   }
+  if(!properties.useCoolantForTapping && hasParameter("operation:cycleType") && 
+  ((getParameter("operation:cycleType") == "tapping") || 
+  (getParameter("operation:cycleType") == "right-tapping") || 
+  (getParameter("operation:cycleType") == "left-tapping") || 
+  (getParameter("operation:cycleType") == "tapping-with-chip-breaking"))){
+    setCoolant(COOLANT_OFF);
+    writeBlock("(COOLANT OFF)");
+  } else {
+    // set coolant after we have positioned at Z
+    setCoolant(tool.coolant);
+    writeBlock("(COOLANT ON)");
+  }
+
   
   if (!isProbeOperation() &&
       !isInspectionOperation(currentSection) &&
@@ -1321,8 +1334,6 @@ function onSection() {
     setProbingAngle();
   }
 
-  // set coolant after we have positioned at Z
-  setCoolant(tool.coolant);
 
   if (properties.useSmoothing) {
     if (hasParameter("operation-strategy") && (getParameter("operation-strategy") != "drill")) {
@@ -1892,6 +1903,8 @@ function onCyclePoint(x, y, z) {
         onCommand(COMMAND_COOLANT_OFF);
         writeBlock(mFormat.format(1));
         forceSpindleSpeed = true;
+        writeBlock("/GOTO", (E));
+     	  E=E+10;
 
       //}
       break;
